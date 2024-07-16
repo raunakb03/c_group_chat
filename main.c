@@ -1,10 +1,12 @@
 #include "./mylib.h"
 #include <arpa/inet.h>
+#include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
-
+#include <unistd.h>
 
 int main() {
 
@@ -20,14 +22,23 @@ int main() {
     printf("connection was successful\n");
   }
 
-  const char *message;
-  message = "GET \\ HTTP/1.1\r\nHost:google.com\r\n\r\n";
-  send(socketFD, message, strlen(message), 0);
+  char *line = NULL;
+  size_t lineSize = 0;
+  printf("Type the message you want to send. Type exit to break... \n");
 
-  char buffer[1024];
-  recv(socketFD, buffer, 1024, 0);
+  while (true) {
+    ssize_t charcount = getline(&line, &lineSize, stdin);
 
-  printf("Data received: %s\n", buffer);
+    if (charcount > 0) {
+
+      if (strcmp(line, "exit\n") == 0)
+        break;
+
+      ssize_t amountWasSent = send(socketFD, line, charcount, 0);
+    }
+  }
+
+  close(socketFD);
 
   return 0;
 }

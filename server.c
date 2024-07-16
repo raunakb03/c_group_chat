@@ -1,7 +1,9 @@
 #include "mylib.h"
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 int main() {
   int serverSocketFD = createTCPIpv4Socket();
@@ -20,9 +22,19 @@ int main() {
                               (socklen_t *)&clientAddressSize);
 
   char buffer[1024];
-  recv(clientSocketFD, buffer, 1024, 0);
+  while (true) {
+    ssize_t amountRecieved = recv(clientSocketFD, buffer, 1024, 0);
+    if (amountRecieved > 0) {
+      buffer[amountRecieved] = 0;
+      printf("Response from client: %s\n", buffer);
+    }
 
-  printf("Response from client: %s\n", buffer);
+    if (amountRecieved == 0) {
+      break;
+    }
+  }
+  close(clientSocketFD);
+  shutdown(serverSocketFD, SHUT_RDWR);
 
   return 0;
 }
