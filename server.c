@@ -1,5 +1,7 @@
 #include "mylib.h"
+#include <bits/pthreadtypes.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +16,11 @@ struct AcceptedSocket {
 };
 
 struct AcceptedSocket *acceptIncomingConnection(int serverSocketFD);
+void *receiveAndPrintIncomingData(void *socketFD);
+void startAcceptingIncomingConnections(int serverSocketFD);
+void acceptNewConnectionAndReceiveAndPrintItsData(int serverSocketFD);
+void receiveAndPrintIncomingDataonSeparateThread(
+    struct AcceptedSocket *pSocket);
 
 int main() {
   int serverSocketFD = createTCPIpv4Socket();
@@ -26,13 +33,33 @@ int main() {
 
   int listenResult = listen(serverSocketFD, 10);
 
-  struct AcceptedSocket *clientSocket =
-      acceptIncomingConnection(serverSocketFD);
+  startAcceptingIncomingConnections(serverSocketFD);
 
+  shutdown(serverSocketFD, SHUT_RDWR);
+
+  return 0;
+}
+
+void startAcceptingIncomingConnections(int serverSocketFD) {
+  while (true) {
+    struct AcceptedSocket *clientSocket =
+        acceptIncomingConnection(serverSocketFD);
+    receiveAndPrintIncomingDataonSeparateThread(clientSocket);
+  }
+}
+
+void receiveAndPrintIncomingDataonSeparateThread(
+    struct AcceptedSocket *pSocket) {
+  pthread_t id;
+  pthread_create(&id, NULL, receiveAndPrintIncomingData,
+                 &(pSocket->acceptedSocketFD));
+}
+
+void *receiveAndPrintIncomingData(void *socketFD) {
+  int fd = *((int *)socketFD);
   char buffer[1024];
   while (true) {
-    ssize_t amountRecieved =
-        recv(clientSocket->acceptedSocketFD, buffer, 1024, 0);
+    ssize_t amountRecieved = recv(fd, buffer, 1024, 0);
     if (amountRecieved > 0) {
       buffer[amountRecieved] = 0;
       printf("Response from client: %s\n", buffer);
@@ -42,10 +69,8 @@ int main() {
       break;
     }
   }
-  close(clientSocket->acceptedSocketFD);
-  shutdown(serverSocketFD, SHUT_RDWR);
-
-  return 0;
+  close(fd);
+  return NULL;
 }
 
 struct AcceptedSocket *acceptIncomingConnection(int serverSocketFD) {
