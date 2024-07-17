@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -15,12 +16,15 @@ struct AcceptedSocket {
   bool acceptedSuccessfully;
 };
 
+struct AcceptedSocket acceptedSockets[10];
+int acceptedSocketsCount = 0;
+
 struct AcceptedSocket *acceptIncomingConnection(int serverSocketFD);
 void *receiveAndPrintIncomingData(void *socketFD);
 void startAcceptingIncomingConnections(int serverSocketFD);
-void acceptNewConnectionAndReceiveAndPrintItsData(int serverSocketFD);
-void receiveAndPrintIncomingDataonSeparateThread(
+void receiveAndPrintIncomingDataOnSeparateThread(
     struct AcceptedSocket *pSocket);
+void sendRecievedMessageToTheOtherClient(char *buffer, int socketFD);
 
 int main() {
   int serverSocketFD = createTCPIpv4Socket();
@@ -44,11 +48,12 @@ void startAcceptingIncomingConnections(int serverSocketFD) {
   while (true) {
     struct AcceptedSocket *clientSocket =
         acceptIncomingConnection(serverSocketFD);
-    receiveAndPrintIncomingDataonSeparateThread(clientSocket);
+    acceptedSockets[acceptedSocketsCount++] = *clientSocket;
+    receiveAndPrintIncomingDataOnSeparateThread(clientSocket);
   }
 }
 
-void receiveAndPrintIncomingDataonSeparateThread(
+void receiveAndPrintIncomingDataOnSeparateThread(
     struct AcceptedSocket *pSocket) {
   pthread_t id;
   pthread_create(&id, NULL, receiveAndPrintIncomingData,
@@ -62,7 +67,8 @@ void *receiveAndPrintIncomingData(void *socketFD) {
     ssize_t amountRecieved = recv(fd, buffer, 1024, 0);
     if (amountRecieved > 0) {
       buffer[amountRecieved] = 0;
-      printf("Response from client: %s\n", buffer);
+      printf("%s\n", buffer);
+      sendRecievedMessageToTheOtherClient(buffer, fd);
     }
 
     if (amountRecieved == 0) {
@@ -71,6 +77,14 @@ void *receiveAndPrintIncomingData(void *socketFD) {
   }
   close(fd);
   return NULL;
+}
+
+void sendRecievedMessageToTheOtherClient(char *buffer, int socketFD) {
+  for (int i = 0; i < acceptedSocketsCount; i++) {
+    if (acceptedSockets[i].acceptedSocketFD != socketFD) {
+      send(acceptedSockets[i].acceptedSocketFD, buffer, strlen(buffer), 0);
+    }
+  }
 }
 
 struct AcceptedSocket *acceptIncomingConnection(int serverSocketFD) {
